@@ -1,0 +1,5 @@
+data/*.csv
+data/entrance.json
+.venv
+__pycache__/
+*.pyc

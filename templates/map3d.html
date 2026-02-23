@@ -1,0 +1,1383 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IntellVentory — 3D Store Map</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --panel:#ffffffee;
+      --text:#0f172a;
+      --muted:#475569;
+      --line:#e5e7eb;
+      --blue:#2563eb;
+      --blue2:#1d4ed8;
+      --red:#ef4444;
+      --amber:#f59e0b;
+      --green:#22c55e;
+      --chip:#eef2ff;
+      --shadow:0 18px 40px rgba(2,6,23,.14);
+      --radius:14px;
+    }
+
+    body{ margin:0; overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); }
+
+    #panel{
+      position:absolute; left:14px; top:14px; width:420px;
+      background:var(--panel);
+      border:1px solid rgba(226,232,240,.8);
+      backdrop-filter: blur(8px);
+      padding:12px;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      z-index:10;
+    }
+
+    .hdr{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .title{ font-weight:800; color:var(--text); font-size:15px; line-height:1.1; }
+    .sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+
+    .btnRow{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    button{
+      padding:8px 10px;
+      border:1px solid transparent;
+      border-radius:12px;
+      background:var(--blue);
+      color:#fff;
+      cursor:pointer;
+      transition: transform .12s ease, filter .12s ease, background .12s ease;
+      font-weight:700;
+      font-size:12px;
+    }
+    button:hover{ transform: translateY(-1px); filter:brightness(1.03); }
+    button.secondary{ background:#fff; color:var(--text); border-color:var(--line); }
+    button.ghost{ background:transparent; color:var(--text); border-color:var(--line); }
+    button.danger{ background:var(--red); }
+    button:disabled{ opacity:.45; cursor:not-allowed; transform:none !important; }
+
+    .pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:var(--chip); color:var(--text); font-size:12px; font-weight:800; border:1px solid rgba(199,210,254,.7); }
+    .pill .dot{ width:8px; height:8px; border-radius:999px; background:var(--blue); }
+
+    .status{ margin-top:10px; font-size:12px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+    .status .ok{ width:9px; height:9px; border-radius:999px; background:var(--green); }
+
+    .divider{ height:1px; background:var(--line); margin:10px 0; }
+
+    label{ display:block; font-size:12px; font-weight:800; color:var(--text); margin:0 0 6px; }
+    input, select{
+      width:100%; box-sizing:border-box;
+      padding:9px 10px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#fff;
+      outline:none;
+      font-size:12px;
+    }
+    input:focus, select:focus{ border-color:rgba(37,99,235,.55); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+
+    .two{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+
+    .card{
+      margin-top:10px;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px;
+      box-shadow: 0 10px 22px rgba(2,6,23,.06);
+    }
+
+    .infoTitle{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .infoTitle b{ font-size:12px; color:var(--text); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .muted{ color:var(--muted); }
+    .small{ font-size:12px; }
+
+    .legend{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:10px; font-size:12px; color:var(--muted); }
+    .tag{ display:flex; align-items:center; gap:8px; }
+    .ldot{ width:12px; height:12px; border-radius:50%; display:inline-block; }
+
+    #toast{
+      position:absolute; right:14px; top:14px;
+      padding:10px 12px;
+      border-radius:12px;
+      color:white;
+      box-shadow:0 12px 30px rgba(0,0,0,0.18);
+      opacity:0;
+      transform: translateY(-8px);
+      transition: opacity .18s ease, transform .18s ease;
+      z-index:20;
+      pointer-events:none;
+      font-size:13px;
+      max-width: 520px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #toast.show{ opacity:1; transform: translateY(0); }
+
+    .accordionBtn{ width:100%; justify-content:space-between; display:flex; align-items:center; }
+    .caret{ display:inline-block; transition: transform .14s ease; }
+    .open .caret{ transform: rotate(180deg); }
+    #layoutSection{ display:none; }
+
+    #modalBack{
+      position:fixed; inset:0;
+      background: rgba(2,6,23,.45);
+      display:none; align-items:center; justify-content:center;
+      z-index:50;
+      padding:18px;
+    }
+    #modal{
+      width:min(520px, 96vw);
+      background:#fff;
+      border-radius:18px;
+      border:1px solid rgba(226,232,240,.9);
+      box-shadow:0 24px 60px rgba(2,6,23,.25);
+      overflow:hidden;
+    }
+    #modal .mhead{ padding:12px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+    #modal .mhead b{ color:var(--text); }
+    #modal .mbody{ padding:14px; }
+    #modal .mfoot{ padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end; }
+
+    #debug{ margin-top:8px; font-size:11px; color:#334155; white-space:pre-wrap; max-height:140px; overflow:auto; border:1px dashed #cbd5e1; padding:8px; border-radius:12px; display:none; background:#fff; }
+    a{ color:var(--blue); text-decoration:none; }
+
+    @media (max-width: 520px){
+      #panel{ width: calc(100vw - 28px); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="toast"></div>
+  <div id="storage-warning" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#b91c1c; color:#fff; text-align:center; padding:10px 16px; font-size:14px; font-weight:600; letter-spacing:0.01em;">
+    ⚠️ <strong>NO PERSISTENT STORAGE:</strong> Supabase is not configured. Any layout you save will be lost when the page reloads.
+    Set <code style="background:rgba(0,0,0,0.25);padding:2px 6px;border-radius:3px;">SUPABASE_URL</code> and
+    <code style="background:rgba(0,0,0,0.25);padding:2px 6px;border-radius:3px;">SUPABASE_SERVICE_KEY</code>
+    in your Vercel environment variables.
+  </div>
+
+  <div id="modalBack">
+    <div id="modal">
+      <div class="mhead">
+        <b id="mTitle">Take items</b>
+        <button id="mClose" class="ghost">Close</button>
+      </div>
+      <div class="mbody">
+        <div class="small muted" id="mDesc">—</div>
+        <div class="divider"></div>
+        <label for="mQty">Quantity to take</label>
+        <input id="mQty" type="number" min="1" value="1" />
+        <div class="small muted" style="margin-top:8px;" id="mHint">—</div>
+      </div>
+      <div class="mfoot">
+        <button id="mCancel" class="secondary">Cancel</button>
+        <button id="mConfirm">Confirm take</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="hdr">
+      <div>
+        <div class="title">3D Store Map</div>
+        <div class="sub">FEFO picker + layout editor</div>
+      </div>
+      <span id="modePill" class="pill"><span class="dot"></span><span id="modeText">Operations</span></span>
+    </div>
+
+    <div class="btnRow" style="margin-top:10px;">
+      <button id="fitBtn">Fit All</button>
+      <button id="resetBtn" class="secondary">Reset</button>
+      <button id="toggleDebug" class="secondary">Debug</button>
+    </div>
+
+    <div class="status" id="statusRow"><span class="ok"></span><span id="status">Loading…</span></div>
+
+    <div class="divider"></div>
+
+    <label>Pick product (FEFO)</label>
+    <input id="searchBox" placeholder="Search SKU or name…" />
+    <div style="margin-top:8px;"><select id="productSelect"><option value="">Loading products…</option></select></div>
+
+    <div class="btnRow" style="margin-top:10px;">
+      <button id="pickBtn">Show where to take</button>
+      <button id="takeBtn" class="secondary" disabled>Take from recommended bin</button>
+      <button id="clearPick" class="secondary">Clear</button>
+    </div>
+
+    <div class="card" id="info">
+      <div class="infoTitle">
+        <b>Selection</b>
+        <span class="mono muted" id="selId">—</span>
+      </div>
+      <div class="small" style="margin-top:8px;" id="infoBody">
+        Click a bin, or run FEFO to see item details.
+      </div>
+    </div>
+
+    <button id="layoutToggle" class="secondary accordionBtn" style="margin-top:10px;">
+      <span>Layout editor</span>
+      <span class="caret">▾</span>
+    </button>
+
+    <div id="layoutSection" class="card" style="margin-top:8px;">
+      <div class="two">
+        <div>
+          <label>Floor</label>
+          <select id="floorSelect">
+            <option value="G">G (Ground)</option>
+            <option value="F">F (First)</option>
+          </select>
+        </div>
+        <div>
+          <label>Snap (meters)</label>
+          <select id="snapSelect">
+            <option value="1">1.0</option>
+            <option value="0.5">0.5</option>
+            <option value="0">Off</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="btnRow" style="margin-top:10px;">
+        <button id="toggleEdit" class="secondary">Enter Edit Mode</button>
+        <button id="addSlot" class="secondary" disabled>Add Slot</button>
+        <button id="addLine" class="secondary" disabled>Add Line</button>
+      </div>
+
+      <div class="btnRow" style="margin-top:8px;">
+        <button id="addShelf" class="secondary" disabled>Add Shelf (divide)</button>
+        <button id="delShelf" class="danger" disabled>Delete Shelf</button>
+        <button id="delRack" class="danger" disabled>Delete Rack</button>
+        <button id="moveEntrance" class="secondary" disabled>Move Entrance</button>
+      </div>
+
+      <div class="two" style="margin-top:10px;">
+        <div>
+          <label>Bin ID override (optional)</label>
+          <input id="customId" placeholder="e.g., F-A-1-A" />
+        </div>
+        <div>
+          <label>Display name (optional)</label>
+          <input id="displayName" placeholder="e.g., Snacks Top" />
+        </div>
+      </div>
+
+      <div class="btnRow" style="margin-top:10px;">
+        <button id="saveLayout" disabled>Save Layout</button>
+        <button id="discardChanges" class="secondary" disabled>Discard</button>
+      </div>
+
+      <div class="small muted" style="margin-top:10px;">
+        Tip: Drag a rack to move it. Shelves divide the same slot. IDs are auto-generated as <span class="mono">G-A-7-B</span>.
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="tag"><span class="ldot" style="background:#ef4444"></span>Expired</div>
+      <div class="tag"><span class="ldot" style="background:#f59e0b"></span>Pick first</div>
+      <div class="tag"><span class="ldot" style="background:#2563eb"></span>Other bins</div>
+      <div class="tag"><span class="ldot" style="background:#94a3b8"></span>No stock</div>
+    </div>
+
+    <div id="debug"></div>
+    <div style="margin-top:10px;"><a href="/logout">Logout</a></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "/static/vendor/three.module.js";
+    import { OrbitControls } from "/static/vendor/OrbitControls.js";
+
+    // ---------------- UI refs ----------------
+    const statusEl = document.getElementById("status");
+    const debugEl  = document.getElementById("debug");
+    const toastEl  = document.getElementById("toast");
+
+    const modeText = document.getElementById('modeText');
+
+    const searchBox = document.getElementById("searchBox");
+    const productSelect = document.getElementById("productSelect");
+    const pickBtn = document.getElementById("pickBtn");
+    const takeBtn = document.getElementById('takeBtn');
+    const clearPick = document.getElementById("clearPick");
+
+    const layoutToggle = document.getElementById('layoutToggle');
+    const layoutSection = document.getElementById('layoutSection');
+
+    const floorSelect = document.getElementById("floorSelect");
+    const snapSelect = document.getElementById("snapSelect");
+
+    const toggleEditBtn = document.getElementById("toggleEdit");
+    const addSlotBtn = document.getElementById("addSlot");
+    const addLineBtn = document.getElementById("addLine");
+    const addShelfBtn = document.getElementById("addShelf");
+    const delShelfBtn = document.getElementById("delShelf");
+    const delRackBtn = document.getElementById("delRack");
+    const moveEntranceBtn = document.getElementById("moveEntrance");
+    const saveLayoutBtn = document.getElementById("saveLayout");
+    const discardBtn = document.getElementById("discardChanges");
+
+    const customIdInput = document.getElementById("customId");
+    const displayNameInput = document.getElementById("displayName");
+
+    const infoBody = document.getElementById('infoBody');
+    const selId = document.getElementById('selId');
+
+    // modal
+    const modalBack = document.getElementById('modalBack');
+    const mTitle = document.getElementById('mTitle');
+    const mDesc = document.getElementById('mDesc');
+    const mQty = document.getElementById('mQty');
+    const mHint = document.getElementById('mHint');
+    const mClose = document.getElementById('mClose');
+    const mCancel = document.getElementById('mCancel');
+    const mConfirm = document.getElementById('mConfirm');
+
+    document.getElementById("toggleDebug").onclick = () => {
+      debugEl.style.display = (debugEl.style.display === "none" || debugEl.style.display === "") ? "block" : "none";
+    };
+
+    function log(msg){
+      console.log(msg);
+      debugEl.textContent += msg + "\n";
+      debugEl.scrollTop = debugEl.scrollHeight;
+    }
+
+    function toast(msg, type="info"){
+      const bg = (type==="danger") ? "#ef4444" : (type==="warn") ? "#f59e0b" : "#2563eb";
+      toastEl.style.background = bg;
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
+      setTimeout(()=>toastEl.classList.remove("show"), 2400);
+    }
+
+    function escapeHtml(s){
+      return String(s ?? '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+    }
+
+    // ---------------- API helper (IMPORTANT) ----------------
+    async function apiFetch(url, opts = {}){
+      const res = await fetch(url, {
+        credentials: "include",          // always send session cookie
+        cache: "no-store",
+        ...opts,
+        headers: {
+          "Content-Type": "application/json",
+          ...(opts.headers || {})
+        }
+      });
+
+      const ct = res.headers.get("content-type") || "";
+
+      // If server redirects to login, fetch will return HTML. Detect it cleanly.
+      if(!ct.includes("application/json")){
+        const text = await res.text().catch(()=> "");
+        console.error("Non-JSON response:", res.status, text.slice(0, 400));
+        return { ok:false, status: res.status, error: "Not authorized / session expired (HTML response)" };
+      }
+
+      const data = await res.json().catch(()=> ({ ok:false, error:"Bad JSON response" }));
+      if(!res.ok){
+        return { ok:false, status: res.status, ...(data || {}), error: data?.error || `HTTP ${res.status}` };
+      }
+      return data;
+    }
+
+    // ---------------- Layout constants ----------------
+    const FLOOR_HEIGHT = 5.0;
+    const RACK_HEIGHT = 1.6;
+    const SHELF_GAP = 0.20;
+    const LINE_SPACING = 3.0;
+    const SLOT_SPACING = 1.2;
+
+    const FLOOR_ORDER = { "G": 0, "F": 1 };
+    function floorBaseY(floor){
+      const idx = (floor in FLOOR_ORDER) ? FLOOR_ORDER[floor] : 0;
+      return idx * FLOOR_HEIGHT;
+    }
+
+    function safeNum(v, fallback=0){
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function snap(v){
+      const s = Number(snapSelect.value);
+      if(!Number.isFinite(s) || s <= 0) return v;
+      return Math.round(v / s) * s;
+    }
+
+    // ---------------- Scene ----------------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf5f7fb);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    camera.position.set(10, 12, 25);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.12;
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+    dir.position.set(20, 30, 10);
+    scene.add(dir);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+
+    const floorPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(250, 250),
+      new THREE.MeshStandardMaterial({ color: 0xffffff })
+    );
+    floorPlane.rotation.x = -Math.PI/2;
+    floorPlane.position.y = -0.001;
+    scene.add(floorPlane);
+
+    const grid = new THREE.GridHelper(250, 50);
+    scene.add(grid);
+
+    const binsGroup = new THREE.Group();
+    scene.add(binsGroup);
+
+    const BASE_BIN_GEOM = new THREE.BoxGeometry(1.0, 1.0, 1.0);
+
+    const entrance = new THREE.Mesh(
+      new THREE.ConeGeometry(0.4, 1.0, 16),
+      new THREE.MeshStandardMaterial({ color: 0x22c55e })
+    );
+    entrance.rotation.x = Math.PI;
+    scene.add(entrance);
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // Data
+    const binMeshesById = new Map();
+    const racks = new Map();
+    const binById = new Map();
+    const deletedBinIds = new Set();
+
+    let allProducts = [];
+
+    // state
+    let editMode = false;
+    let placingSlot = false;
+    let placingEntrance = false;
+
+    let selectedBinId = null;
+    let selectedRackKey = null;
+
+    let pickContext = { sku:null, bestBinId:null, bestQty:0, item:null };
+
+    // internal IDs
+    let tmpCounter = 0;
+    function newInternalId(floor){
+      // Use UUID when available to avoid collisions after reload / across clients
+      if(window.crypto && typeof window.crypto.randomUUID === "function"){
+        return `${floor}-N-${window.crypto.randomUUID().slice(0,8)}`;
+      }
+      tmpCounter += 1;
+      return `${floor}-N-${tmpCounter}`;
+    }
+
+    function rackKey(floor, x, z){
+      const rx = Math.round(x*1000)/1000;
+      const rz = Math.round(z*1000)/1000;
+      return `${floor}|${rx}|${rz}`;
+    }
+
+    function ensureRack(floor, x, z){
+      const k = rackKey(floor, x, z);
+      if(!racks.has(k)) racks.set(k, { floor, x, z, bins: [] });
+      return racks.get(k);
+    }
+
+    function setBinColor(mesh, hex){ mesh.material.color.setHex(hex); }
+    function resetAllColors(){ for(const mesh of binMeshesById.values()) setBinColor(mesh, 0x94a3b8); }
+
+    let pulse = { active:false, mesh:null };
+    function startPulse(mesh, color){
+      pulse.active = true;
+      pulse.mesh = mesh;
+      mesh.material.emissive = new THREE.Color(color);
+      mesh.material.emissiveIntensity = 0.9;
+    }
+    function stopPulse(){
+      if(pulse.mesh) pulse.mesh.material.emissiveIntensity = 0.0;
+      pulse.active = false;
+      pulse.mesh = null;
+    }
+
+    let bbox = {minX:Infinity, minY:Infinity, minZ:Infinity, maxX:-Infinity, maxY:-Infinity, maxZ:-Infinity};
+    function updateBBox(x,y,z){
+      bbox.minX = Math.min(bbox.minX, x); bbox.maxX = Math.max(bbox.maxX, x);
+      bbox.minY = Math.min(bbox.minY, y); bbox.maxY = Math.max(bbox.maxY, y);
+      bbox.minZ = Math.min(bbox.minZ, z); bbox.maxZ = Math.max(bbox.maxZ, z);
+    }
+    function fitCamera(){
+      const cx = (bbox.minX + bbox.maxX)/2;
+      const cy = (bbox.minY + bbox.maxY)/2;
+      const cz = (bbox.minZ + bbox.maxZ)/2;
+      const sx = (bbox.maxX - bbox.minX);
+      const sy = (bbox.maxY - bbox.minY);
+      const sz = (bbox.maxZ - bbox.minZ);
+      const maxDim = Math.max(sx, sy, sz, 10);
+      camera.position.set(cx + maxDim*0.9, cy + maxDim*0.8 + 10, cz + maxDim*0.9);
+      controls.target.set(cx, cy, cz);
+      controls.update();
+    }
+
+    function flyTo(pos, target){
+      const startPos = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const endPos = pos.clone();
+      const endTarget = target.clone();
+      const t0 = performance.now();
+      const duration = 650;
+      function easeInOut(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; }
+      function step(now){
+        const t = Math.min(1, (now - t0)/duration);
+        const e = easeInOut(t);
+        camera.position.lerpVectors(startPos, endPos, e);
+        controls.target.lerpVectors(startTarget, endTarget, e);
+        controls.update();
+        if(t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    function layoutRackLevels(rack){
+      const n = rack.bins.length;
+      if(n <= 0) return;
+
+      const baseY = floorBaseY(rack.floor);
+      const available = Math.max(0.3, RACK_HEIGHT - (n-1)*SHELF_GAP);
+      const h = available / n;
+
+      rack.bins.sort((a,b)=> (b.Y - a.Y));
+
+      let yTop = baseY + RACK_HEIGHT - h;
+      for(let i=0;i<n;i++){
+        rack.bins[i].X = rack.x;
+        rack.bins[i].Z = rack.z;
+        rack.bins[i].Y = yTop;
+        rack.bins[i]._levelH = h;
+        yTop -= (h + SHELF_GAP);
+      }
+    }
+
+    function computeAutoIds(){
+      const racksByFloor = new Map();
+      for(const rack of racks.values()){
+        if(!racksByFloor.has(rack.floor)) racksByFloor.set(rack.floor, []);
+        racksByFloor.get(rack.floor).push(rack);
+      }
+
+      for(const [floor, fracks] of racksByFloor.entries()){
+        const zVals = Array.from(new Set(fracks.map(r=>r.z))).sort((a,b)=>a-b);
+        const zToLineIdx = new Map(zVals.map((z,i)=>[z,i]));
+
+        for(const z of zVals){
+          const lineIdx = zToLineIdx.get(z) ?? 0;
+          const lineLetter = String.fromCharCode('A'.charCodeAt(0) + lineIdx);
+          const lineRacks = fracks.filter(r=>r.z===z).sort((a,b)=>a.x-b.x);
+
+          for(let si=0; si<lineRacks.length; si++){
+            const rack = lineRacks[si];
+            const slotNum = si + 1;
+            const binsSorted = rack.bins.slice().sort((a,b)=> (b.Y - a.Y));
+            for(let bi=0; bi<binsSorted.length; bi++){
+              const shelfLetter = String.fromCharCode('A'.charCodeAt(0) + bi);
+              const autoId = `${floor}-${lineLetter}-${slotNum}-${shelfLetter}`;
+              const b = binsSorted[bi];
+              b.Line = lineLetter; b.Slot = slotNum; b.Shelf = shelfLetter;
+              b.Auto_Bin_ID = autoId;
+              b.Display_Bin_ID = (b.Custom_Bin_ID && b.Custom_Bin_ID.trim()) ? b.Custom_Bin_ID.trim() : autoId;
+              if(b.mesh){
+                b.mesh.userData.Display_Bin_ID = b.Display_Bin_ID;
+                b.mesh.userData.Auto_Bin_ID = autoId;
+                b.mesh.userData.Line = lineLetter;
+                b.mesh.userData.Slot = slotNum;
+                b.mesh.userData.Shelf = shelfLetter;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function upsertBinMesh(bin){
+      const h = bin._levelH || 0.8;
+      let mesh = binMeshesById.get(bin.Bin_ID);
+      if(!mesh){
+        const mat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
+        mesh = new THREE.Mesh(BASE_BIN_GEOM, mat);
+        binsGroup.add(mesh);
+        binMeshesById.set(bin.Bin_ID, mesh);
+      }
+      mesh.scale.set(1.0, h, 1.0);
+      mesh.position.set(bin.X, bin.Y + h/2, bin.Z);
+      mesh.userData = { Bin_ID: bin.Bin_ID, Display_Bin_ID: bin.Display_Bin_ID || bin.Auto_Bin_ID || bin.Bin_ID };
+      bin.mesh = mesh;
+      updateBBox(bin.X, bin.Y, bin.Z);
+      return mesh;
+    }
+
+    function refreshAllMeshes(){
+      bbox = {minX:Infinity, minY:Infinity, minZ:Infinity, maxX:-Infinity, maxY:-Infinity, maxZ:-Infinity};
+      for(const rack of racks.values()) layoutRackLevels(rack);
+      computeAutoIds();
+      for(const rack of racks.values()){
+        for(const b of rack.bins) upsertBinMesh(b);
+      }
+    }
+
+    function clearSceneBins(){
+      for(const mesh of binMeshesById.values()) binsGroup.remove(mesh);
+      binMeshesById.clear();
+      racks.clear();
+      binById.clear();
+      deletedBinIds.clear();
+      selectedBinId = null;
+      selectedRackKey = null;
+      selId.textContent = '—';
+    }
+
+    async function loadEntrance(){
+      try{
+        const data = await apiFetch("/api/entrance", { method:"GET", headers:{} });
+        if(data && data.x !== undefined){
+          entrance.position.set(safeNum(data.x,0), safeNum(data.y,0)+0.05, safeNum(data.z,0));
+        } else {
+          entrance.position.set(0,0.05,0);
+        }
+      }catch(e){ entrance.position.set(0,0.05,0); }
+    }
+
+    async function loadBins(){
+      statusEl.textContent = 'Fetching bins…';
+      const allBins = await apiFetch("/api/bins", { method:"GET", headers:{} });
+
+      clearSceneBins();
+
+      if(!Array.isArray(allBins) || allBins.length === 0){
+        statusEl.textContent = 'No bins found. Generate layout first.';
+        return;
+      }
+
+      for(const b of allBins){
+        const bin = {
+          Old_Bin_ID: String(b.Bin_ID || ''),
+          Bin_ID: String(b.Bin_ID || ''),
+          Floor: String(b.Floor || 'G'),
+          X: snap(safeNum(b.X,0)),
+          Y: safeNum(b.Y,0),
+          Z: snap(safeNum(b.Z,0)),
+          Zone: b.Zone || 'FAST_MOVING',
+          Bin_Capacity_units: Number(b.Bin_Capacity_units || 50),
+          Temperature_Controlled: Boolean(b.Temperature_Controlled || false),
+          Display_Name: b.Display_Name || '',
+          Custom_Bin_ID: ''
+        };
+
+        const rack = ensureRack(bin.Floor, bin.X, bin.Z);
+        rack.bins.push(bin);
+        binById.set(bin.Bin_ID, bin);
+      }
+
+
+      // Ensure newInternalId never collides with existing bins after reload
+      for(const id of binById.keys()){
+        const m = String(id).match(/-N-(\d+)$/);
+        if(m){ tmpCounter = Math.max(tmpCounter, parseInt(m[1],10)); }
+      }
+      refreshAllMeshes();
+      statusEl.textContent = `Ready ✅ (${binById.size} bins)`;
+      fitCamera();
+    }
+
+    async function loadProducts(){
+      const resp = await apiFetch("/api/products", { method:"GET", headers:{} });
+      allProducts = Array.isArray(resp) ? resp : [];
+      productSelect.innerHTML = `<option value="">Select product…</option>`;
+      for(const p of allProducts){
+        const sku = p.SKU_ID;
+        const name = p.Item_Name || '';
+        const cat = p.Category ? ` • ${p.Category}` : '';
+        const opt = document.createElement('option');
+        opt.value = sku;
+        opt.textContent = `${sku} — ${name}${cat}`;
+        productSelect.appendChild(opt);
+      }
+    }
+
+    searchBox.addEventListener('input', ()=>{
+      const q = searchBox.value.trim().toLowerCase();
+      if(!q) return;
+      const hit = allProducts.find(p =>
+        String(p.SKU_ID).toLowerCase().includes(q) ||
+        String(p.Item_Name || '').toLowerCase().includes(q)
+      );
+      if(hit) productSelect.value = hit.SKU_ID;
+    });
+
+    function setSelection(binId){
+      selectedBinId = binId;
+      const bin = binById.get(binId);
+      if(!bin){
+        selectedRackKey = null;
+        customIdInput.value = '';
+        displayNameInput.value = '';
+        selId.textContent = '—';
+        return;
+      }
+      selectedRackKey = rackKey(bin.Floor, bin.X, bin.Z);
+      customIdInput.value = bin.Custom_Bin_ID || '';
+      displayNameInput.value = bin.Display_Name || '';
+      selId.textContent = bin.Display_Bin_ID || bin.Auto_Bin_ID || bin.Bin_ID;
+
+      infoBody.innerHTML = `
+        <div class="small"><b>Bin</b>: <span class="mono">${escapeHtml(bin.Display_Bin_ID || bin.Auto_Bin_ID || bin.Bin_ID)}</span></div>
+        <div class="small muted" style="margin-top:6px;">Floor ${escapeHtml(bin.Floor)} • Line ${escapeHtml(bin.Line||'—')} • Slot ${escapeHtml(bin.Slot||'—')} • Shelf ${escapeHtml(bin.Shelf||'—')}</div>
+        <div class="small muted" style="margin-top:6px;">Tip: Run FEFO to see item details and take items.</div>
+      `;
+
+      addShelfBtn.disabled = !(editMode && selectedRackKey);
+      delShelfBtn.disabled = !(editMode && selectedRackKey && racks.get(selectedRackKey) && racks.get(selectedRackKey).bins.length > 1);
+      delRackBtn.disabled = !(editMode && selectedRackKey);
+    }
+
+    function screenToRay(evt){
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+    }
+
+    function hitBin(evt){
+      screenToRay(evt);
+      const hits = raycaster.intersectObjects([...binMeshesById.values()], false);
+      if(!hits.length) return null;
+      return hits[0].object;
+    }
+
+    function hitFloor(evt, floor){
+      screenToRay(evt);
+      floorPlane.position.y = floorBaseY(floor);
+      const hits = raycaster.intersectObject(floorPlane, false);
+      if(!hits.length) return null;
+      return hits[0].point;
+    }
+
+    renderer.domElement.addEventListener('click', async (evt)=>{
+      if(editMode && placingEntrance){
+        const floor = floorSelect.value;
+        const p = hitFloor(evt, floor);
+        if(!p) return;
+        const x = snap(p.x), z = snap(p.z), y = floorBaseY(floor);
+        entrance.position.set(x, y+0.05, z);
+        placingEntrance = false;
+        toast('Entrance moved', 'info');
+
+        apiFetch("/api/entrance", { method:"POST", body: JSON.stringify({x,y,z}) })
+          .catch(()=>{});
+        return;
+      }
+
+      if(editMode && placingSlot){
+        const floor = floorSelect.value;
+        const p = hitFloor(evt, floor);
+        if(!p) return;
+        const x = snap(p.x), z = snap(p.z);
+        createRackAt(floor, x, z, 1);
+        placingSlot = false;
+        toast('Slot added', 'info');
+        return;
+      }
+
+      const obj = hitBin(evt);
+      if(!obj) return;
+      const id = obj.userData?.Bin_ID;
+      if(id) setSelection(id);
+    });
+
+    // drag rack
+    let dragRack = null;
+    let dragRackKey = null;
+    let isDragging = false;
+    let draggingPointerId = null;
+
+    renderer.domElement.addEventListener('pointerdown', (evt)=>{
+      if(!editMode) return;
+      const obj = hitBin(evt);
+      if(!obj) return;
+      const id = obj.userData?.Bin_ID;
+      const bin = binById.get(id);
+      if(!bin) return;
+
+      dragRackKey = rackKey(bin.Floor, bin.X, bin.Z);
+      dragRack = racks.get(dragRackKey);
+      if(!dragRack) return;
+
+      isDragging = true;
+      controls.enabled = false;
+      draggingPointerId = evt.pointerId;
+      try{ renderer.domElement.setPointerCapture(draggingPointerId); }catch(e){}
+      evt.preventDefault();
+    });
+
+    renderer.domElement.addEventListener('pointermove', (evt)=>{
+      if(!editMode || !isDragging || !dragRack) return;
+      const p = hitFloor(evt, dragRack.floor);
+      if(!p) return;
+
+      const nx = snap(p.x);
+      const nz = snap(p.z);
+      if(nx === dragRack.x && nz === dragRack.z) return;
+
+      dragRack.x = nx; dragRack.z = nz;
+      const newKey = rackKey(dragRack.floor, dragRack.x, dragRack.z);
+      if(newKey !== dragRackKey){
+        racks.delete(dragRackKey);
+        racks.set(newKey, dragRack);
+        dragRackKey = newKey;
+        selectedRackKey = newKey;
+      }
+
+      // Ensure newInternalId never collides with existing bins after reload
+      for(const id of binById.keys()){
+        const m = String(id).match(/-N-(\d+)$/);
+        if(m){ tmpCounter = Math.max(tmpCounter, parseInt(m[1],10)); }
+      }
+      refreshAllMeshes();
+      evt.preventDefault();
+    });
+
+    function stopDrag(){
+      isDragging = false;
+      dragRack = null;
+      dragRackKey = null;
+      controls.enabled = true;
+      if(draggingPointerId !== null){
+        try{ renderer.domElement.releasePointerCapture(draggingPointerId); }catch(e){}
+      }
+      draggingPointerId = null;
+    }
+
+    renderer.domElement.addEventListener('pointerup', (evt)=>{ if(!editMode) return; stopDrag(); evt.preventDefault(); });
+    renderer.domElement.addEventListener('pointercancel', ()=>{ if(!editMode) return; stopDrag(); });
+
+    // ---------------- Editor actions ----------------
+    function createRackAt(floor, x, z, shelves=1){
+      const rack = ensureRack(floor, x, z);
+      if(rack.bins.length === 0){
+        for(let i=0;i<shelves;i++){
+          const id = newInternalId(floor);
+          const bin = {
+            Old_Bin_ID: '',
+            Bin_ID: id,
+            Floor: floor,
+            X: x,
+            Y: floorBaseY(floor),
+            Z: z,
+            Zone: 'FAST_MOVING',
+            Bin_Capacity_units: 50,
+            Temperature_Controlled: false,
+            Display_Name: '',
+            Custom_Bin_ID: ''
+          };
+          rack.bins.push(bin);
+          binById.set(id, bin);
+        }
+      } else {
+        for(let i=0;i<shelves;i++) addShelfToRack(rack);
+      }
+
+      // Ensure newInternalId never collides with existing bins after reload
+      for(const id of binById.keys()){
+        const m = String(id).match(/-N-(\d+)$/);
+        if(m){ tmpCounter = Math.max(tmpCounter, parseInt(m[1],10)); }
+      }
+      refreshAllMeshes();
+    }
+
+    function addShelfToRack(rack){
+      const id = newInternalId(rack.floor);
+      const bin = {
+        Old_Bin_ID: '',
+        Bin_ID: id,
+        Floor: rack.floor,
+        X: rack.x,
+        Y: floorBaseY(rack.floor),
+        Z: rack.z,
+        Zone: 'FAST_MOVING',
+        Bin_Capacity_units: 50,
+        Temperature_Controlled: false,
+        Display_Name: '',
+        Custom_Bin_ID: ''
+      };
+      rack.bins.push(bin);
+      binById.set(id, bin);
+    }
+
+    function deleteRack(k){
+      const rack = racks.get(k);
+      if(!rack) return;
+      for(const b of rack.bins){
+        deletedBinIds.add(String(b.Bin_ID));
+        const mesh = binMeshesById.get(b.Bin_ID);
+        if(mesh) binsGroup.remove(mesh);
+        binMeshesById.delete(b.Bin_ID);
+        binById.delete(b.Bin_ID);
+      }
+      racks.delete(k);
+      selectedBinId = null;
+      selectedRackKey = null;
+      customIdInput.value='';
+      displayNameInput.value='';
+      selId.textContent = '—';
+      toast('Rack deleted (save to commit)', 'warn');
+    }
+
+    function addLine(floor, slotsCount){
+      const zs = [];
+      for(const r of racks.values()) if(r.floor === floor) zs.push(r.z);
+      const maxZ = zs.length ? Math.max(...zs) : 0;
+      const z = snap(maxZ + LINE_SPACING);
+
+      for(let i=0;i<slotsCount;i++){
+        const x = snap(i * SLOT_SPACING);
+        createRackAt(floor, x, z, 1);
+      }
+      toast(`Line added (${slotsCount} slots)`, 'info');
+    }
+
+    function applyNameEdits(){
+      if(!selectedBinId) return;
+      const bin = binById.get(selectedBinId);
+      if(!bin) return;
+      bin.Custom_Bin_ID = customIdInput.value.trim();
+      bin.Display_Name = displayNameInput.value.trim();
+      computeAutoIds();
+      if(bin.mesh) bin.mesh.userData.Display_Bin_ID = bin.Display_Bin_ID;
+      selId.textContent = bin.Display_Bin_ID;
+    }
+    customIdInput.addEventListener('input', applyNameEdits);
+    displayNameInput.addEventListener('input', applyNameEdits);
+
+    function setEditMode(on){
+      editMode = on;
+      modeText.textContent = on ? 'Edit Layout' : 'Operations';
+      toggleEditBtn.textContent = on ? 'Exit Edit Mode' : 'Enter Edit Mode';
+
+      addSlotBtn.disabled = !on;
+      addLineBtn.disabled = !on;
+      saveLayoutBtn.disabled = !on;
+      discardBtn.disabled = !on;
+      moveEntranceBtn.disabled = !on;
+
+      addShelfBtn.disabled = !(on && selectedRackKey);
+      delRackBtn.disabled = !(on && selectedRackKey);
+      delShelfBtn.disabled = !(on && selectedRackKey && racks.get(selectedRackKey) && racks.get(selectedRackKey).bins.length > 1);
+
+      placingSlot = false;
+      placingEntrance = false;
+
+      toast(on ? 'Edit mode enabled' : 'Operations mode', 'info');
+    }
+
+    toggleEditBtn.addEventListener('click', ()=> setEditMode(!editMode));
+
+    addSlotBtn.addEventListener('click', ()=>{ placingEntrance = false; placingSlot = true; toast('Click on floor to place a new slot', 'info'); });
+
+    addLineBtn.addEventListener('click', ()=>{
+      const floor = floorSelect.value;
+      const s = prompt('How many slots in this new line?', '10');
+      const n = Math.max(1, parseInt(s || '10', 10));
+      if(!Number.isFinite(n) || n <= 0) return;
+      addLine(floor, n);
+    });
+
+    addShelfBtn.addEventListener('click', ()=>{
+      if(!selectedRackKey) return;
+      const rack = racks.get(selectedRackKey);
+      if(!rack) return;
+      addShelfToRack(rack);
+
+      // Ensure newInternalId never collides with existing bins after reload
+      for(const id of binById.keys()){
+        const m = String(id).match(/-N-(\d+)$/);
+        if(m){ tmpCounter = Math.max(tmpCounter, parseInt(m[1],10)); }
+      }
+      refreshAllMeshes();
+      toast('Shelf added (slot divided)', 'info');
+      setSelection(rack.bins[0].Bin_ID);
+    });
+
+    delShelfBtn.addEventListener('click', ()=>{
+      if(!selectedRackKey || !selectedBinId) return;
+      const rack = racks.get(selectedRackKey);
+      if(!rack || rack.bins.length <= 1) return;
+
+      const idx = rack.bins.findIndex(b => b.Bin_ID === selectedBinId);
+      if(idx < 0) return;
+
+      const removed = rack.bins.splice(idx, 1)[0];
+      deletedBinIds.add(String(removed.Bin_ID));
+
+      const mesh = binMeshesById.get(removed.Bin_ID);
+      if(mesh) binsGroup.remove(mesh);
+      binMeshesById.delete(removed.Bin_ID);
+      binById.delete(removed.Bin_ID);
+
+
+      // Ensure newInternalId never collides with existing bins after reload
+      for(const id of binById.keys()){
+        const m = String(id).match(/-N-(\d+)$/);
+        if(m){ tmpCounter = Math.max(tmpCounter, parseInt(m[1],10)); }
+      }
+      refreshAllMeshes();
+      if(rack.bins.length){ setSelection(rack.bins[0].Bin_ID); }
+      toast('Shelf deleted (levels merged). Save to commit.', 'warn');
+    });
+
+    delRackBtn.addEventListener('click', ()=>{ if(!selectedRackKey) return; deleteRack(selectedRackKey); });
+
+    moveEntranceBtn.addEventListener('click', ()=>{ placingSlot = false; placingEntrance = true; toast('Click floor to set entrance', 'info'); });
+
+    discardBtn.addEventListener('click', async ()=>{
+      deletedBinIds.clear();
+      if(!editMode) return;
+      await loadBins();
+      toast('Changes discarded', 'info');
+    });
+
+    // ---------------- Save layout (CLEAN, SINGLE VERSION) ----------------
+    saveLayoutBtn.addEventListener('click', async () => {
+      if (!editMode) return;
+
+      const out = [];
+      for (const rack of racks.values()) {
+        layoutRackLevels(rack);
+        for (const b of rack.bins) {
+          out.push({
+            Old_Bin_ID: b.Old_Bin_ID || '',
+            Bin_ID: b.Bin_ID,
+            Location_ID: 'WH1',
+            Floor: rack.floor,
+            X: rack.x,
+            Y: b.Y,
+            Z: rack.z,
+            Zone: b.Zone || 'FAST_MOVING',
+            Bin_Capacity_units: b.Bin_Capacity_units || 50,
+            Temperature_Controlled: !!b.Temperature_Controlled,
+            Display_Name: b.Display_Name || '',
+            Custom_Bin_ID: b.Custom_Bin_ID || ''
+          });
+        }
+      }
+
+      statusEl.textContent = 'Saving layout…';
+
+      const data = await apiFetch("/api/bins/save_all", {
+        method: "POST",
+        body: JSON.stringify({
+          bins: out,
+          deleted_bin_ids: Array.from(deletedBinIds),
+        }),
+      });
+
+      if(!data.ok){
+        statusEl.textContent = "⚠ Save failed";
+        toast(data.error || "Save failed", "danger");
+
+        // if backend sends blocked deletions, unmark them locally
+        if(Array.isArray(data.bins_in_use_missing)){
+          for(const bid of data.bins_in_use_missing) deletedBinIds.delete(String(bid));
+        }
+        return;
+      }
+
+      deletedBinIds.clear();
+      const storageLabel = data.storage === "supabase" ? "☁️ Supabase" : "⚠️ temp file (not persistent!)";
+      toast(`Saved ✅ (${data.bins_written || out.length} bins → ${storageLabel})`, 'info');
+      statusEl.textContent = `Saved ✅ (${data.bins_written || out.length} bins)`;
+      await loadBins();
+    });
+
+    // ---------------- FEFO + item details + take ----------------
+    async function fetchItem(sku){
+      const data = await apiFetch(`/api/item/${encodeURIComponent(sku)}`, { method:"GET", headers:{} });
+      return data && data.ok === false ? null : data;
+    }
+
+    async function fetchBinSkuLots(binId, sku){
+      const data = await apiFetch(`/api/stock/bin_sku?bin=${encodeURIComponent(binId)}&sku=${encodeURIComponent(sku)}`, { method:"GET", headers:{} });
+      if(data && data.ok === false) return { ok:false, lots:[], available:0 };
+      return data;
+    }
+
+    function fmtDate(d){
+      if(!d) return '—';
+      const s = String(d);
+      return s.length >= 10 ? s.slice(0,10) : s;
+    }
+
+    async function showPickGuidance(){
+      const sku = productSelect.value;
+      if(!sku){ toast('Select a product first', 'warn'); return; }
+
+      statusEl.textContent = 'Computing FEFO…';
+      stopPulse();
+      resetAllColors();
+      takeBtn.disabled = true;
+      pickContext = { sku, bestBinId:null, bestQty:0, item:null };
+
+      const data = await apiFetch(`/api/pick_sku/${encodeURIComponent(sku)}`, { method:"GET", headers:{} });
+      if(data && data.ok === false){
+        statusEl.textContent = '⚠ ' + (data.error || "Pick failed");
+        toast(data.error || "Pick failed", 'danger');
+        return;
+      }
+
+      const item = await fetchItem(sku);
+      pickContext.item = item;
+
+      const allLoc = data.all_locations || [];
+      for(const r of allLoc){
+        const mesh = binMeshesById.get(r.Bin_ID);
+        if(mesh) setBinColor(mesh, 0x2563eb);
+      }
+
+      const expired = data.expired || data.expired_bins || [];
+      if(expired && expired.length){
+        for(const r of expired){
+          const mesh = binMeshesById.get(r.Bin_ID);
+          if(mesh) setBinColor(mesh, 0xef4444);
+        }
+      }
+
+      const bestBin = data.pick_from;
+      pickContext.bestBinId = bestBin;
+
+      const bestMesh = binMeshesById.get(bestBin);
+      if(bestMesh){
+        setBinColor(bestMesh, 0xf59e0b);
+        startPulse(bestMesh, 0xf59e0b);
+        const t = bestMesh.position.clone();
+        const camPos = new THREE.Vector3(t.x + 6, t.y + 6, t.z + 8);
+        flyTo(camPos, t);
+      }
+
+      const lots = await fetchBinSkuLots(bestBin, sku);
+      const total = Number(lots.available ?? 0);
+      pickContext.bestQty = total;
+
+      takeBtn.disabled = !(bestBin && total > 0);
+
+      const name = item?.Item_Name || item?.name || '';
+      const cat  = item?.Category || item?.category || '';
+      const brand = item?.Brand || item?.brand || '';
+      const price = item?.Price ?? item?.price;
+
+      const lotLines = (lots.lots || []).slice(0, 10).map(l => {
+        const exp = fmtDate(l.Expiry_Date);
+        return `• Qty <b>${escapeHtml(String(l.Quantity_On_Hand ?? 0))}</b> — Exp <span class="mono">${escapeHtml(exp)}</span>`;
+      }).join('<br/>') || '<span class="muted">No lots found.</span>';
+
+      infoBody.innerHTML = `
+        <div class="small"><b>Recommended bin</b>: <span class="mono">${escapeHtml(bestBin)}</span></div>
+        <div class="small muted" style="margin-top:6px;"><b>Available</b>: ${escapeHtml(String(total))}</div>
+        <div class="divider"></div>
+        <div class="small"><b>Item</b>: ${escapeHtml(name || sku)}</div>
+        <div class="small muted" style="margin-top:4px;">SKU: <span class="mono">${escapeHtml(sku)}</span>${cat?` • ${escapeHtml(cat)}`:''}${brand?` • ${escapeHtml(brand)}`:''}${(price!==undefined && price!==null)?` • Price: ${escapeHtml(String(price))}`:''}</div>
+        <div class="divider"></div>
+        <div class="small"><b>Stock lots in that bin</b>:</div>
+        <div class="small" style="margin-top:6px; line-height:1.45;">${lotLines}</div>
+      `;
+
+      statusEl.textContent = 'FEFO ready ✅';
+      toast(`Pick ${sku} from ${bestBin}`, 'info');
+    }
+
+    pickBtn.addEventListener('click', showPickGuidance);
+
+    clearPick.addEventListener('click', ()=>{
+      stopPulse();
+      resetAllColors();
+      takeBtn.disabled = true;
+      pickContext = { sku:null, bestBinId:null, bestQty:0, item:null };
+      statusEl.textContent = 'Cleared';
+      selId.textContent = '—';
+      infoBody.innerHTML = 'Click a bin, or run FEFO to see item details.';
+    });
+
+    function openModalTake(){
+      if(!pickContext.sku || !pickContext.bestBinId){ return; }
+      const sku = pickContext.sku;
+      const bin = pickContext.bestBinId;
+      const qty = pickContext.bestQty || 0;
+      const name = pickContext.item?.Item_Name || sku;
+
+      mTitle.textContent = 'Take items';
+      mDesc.innerHTML = `Taking <b>${escapeHtml(name)}</b> (<span class="mono">${escapeHtml(sku)}</span>) from bin <span class="mono">${escapeHtml(bin)}</span>`;
+      mQty.value = String(Math.min(1, qty));
+      mQty.min = '1';
+      mQty.max = String(qty);
+      mHint.textContent = `Available in bin: ${qty}. Quantity must be ≤ available.`;
+
+      modalBack.style.display = 'flex';
+      setTimeout(()=> mQty.focus(), 0);
+    }
+
+    function closeModal(){ modalBack.style.display = 'none'; }
+    mClose.onclick = closeModal;
+    mCancel.onclick = closeModal;
+    modalBack.addEventListener('click', (e)=>{ if(e.target === modalBack) closeModal(); });
+
+    takeBtn.addEventListener('click', ()=>{ openModalTake(); });
+
+    mConfirm.addEventListener('click', async ()=>{
+      const sku = pickContext.sku;
+      const bin = pickContext.bestBinId;
+      const available = pickContext.bestQty || 0;
+      const q = Number(mQty.value || 0);
+      if(!sku || !bin){ toast('Missing context', 'danger'); return; }
+      if(!Number.isFinite(q) || q <= 0){ toast('Invalid quantity', 'warn'); return; }
+      if(q > available){ toast('Quantity is more than available', 'warn'); return; }
+
+      mConfirm.disabled = true;
+      statusEl.textContent = 'Updating stock…';
+
+      const data = await apiFetch("/api/stock/take_from_bin", {
+        method:"POST",
+        body: JSON.stringify({ SKU_ID: sku, Bin_ID: bin, Quantity: q })
+      });
+
+      if(!data.ok){
+        toast(data.error || 'Take failed', 'danger');
+        statusEl.textContent = '⚠ Take failed';
+        mConfirm.disabled = false;
+        return;
+      }
+
+      closeModal();
+      toast(`Taken ${q} from ${bin}`, 'info');
+      await showPickGuidance();
+      statusEl.textContent = 'Stock updated ✅';
+      mConfirm.disabled = false;
+    });
+
+    // ---------------- Layout accordion ----------------
+    function setLayoutOpen(open){
+      layoutSection.style.display = open ? 'block' : 'none';
+      layoutToggle.classList.toggle('open', open);
+    }
+    setLayoutOpen(false);
+    layoutToggle.addEventListener('click', ()=>{
+      const isOpen = layoutSection.style.display !== 'none';
+      setLayoutOpen(!isOpen);
+    });
+
+    // ---------------- Top buttons ----------------
+    document.getElementById('fitBtn').onclick = fitCamera;
+    document.getElementById('resetBtn').onclick = () => {
+      camera.position.set(10, 12, 25);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    };
+
+    window.addEventListener('resize', ()=>{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate(){
+      requestAnimationFrame(animate);
+
+      if(pulse.active && pulse.mesh){
+        const t = performance.now() * 0.006;
+        pulse.mesh.material.emissiveIntensity = 0.35 + 0.55 * (0.5 + 0.5*Math.sin(t));
+        const s = 1.0 + 0.06 * (0.5 + 0.5*Math.sin(t));
+        const y = pulse.mesh.scale.y;
+        pulse.mesh.scale.set(s, y, s);
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ---------------- Boot: permissions ----------------
+    async function getRole(){
+      // Preferred: ask server (real authority)
+      const me = await apiFetch("/api/me", { method:"GET", headers:{} }).catch(()=> null);
+      if(me && me.ok && me.role) return me.role;
+
+      // Fallback only (not secure)
+      const role = localStorage.getItem("iv_role");
+      if(role === "admin" || role === "ops") return role;
+      return null;
+    }
+
+    (async ()=>{
+      const role = await getRole();
+
+      if(!role){
+        toast("Please login again", "danger");
+        window.location.href = "/";
+        return;
+      }
+
+      const isAdmin = (role === "admin");
+
+      if(!isAdmin){
+        layoutToggle.style.display = 'none';
+        layoutSection.style.display = 'none';
+
+        toggleEditBtn.disabled = true;
+        addSlotBtn.disabled = true;
+        addLineBtn.disabled = true;
+        addShelfBtn.disabled = true;
+        delShelfBtn.disabled = true;
+        delRackBtn.disabled = true;
+        moveEntranceBtn.disabled = true;
+        saveLayoutBtn.disabled = true;
+        discardBtn.disabled = true;
+      }
+
+      try{
+        await loadBins();
+        await loadProducts();
+        await loadEntrance();
+        // Check storage backend — warn loudly if not using Supabase
+        const storageInfo = await apiFetch("/api/storage", { method:"GET", headers:{} }).catch(()=>null);
+        if(storageInfo && !storageInfo.persistent){
+          document.getElementById("storage-warning").style.display = "block";
+          // Also push the page content down so nothing is hidden under the banner
+          document.body.style.paddingTop = "48px";
+        }
+      }catch(e){
+        console.error(e);
+        statusEl.textContent = '⚠ Failed to load data (API error)';
+      }
+
+      resetAllColors();
+      setEditMode(false);
+      statusEl.textContent = 'Ready ✅ (choose a product to pick)';
+    })();
+  </script>
+</body>
+</html>

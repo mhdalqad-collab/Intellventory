@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Login — IntellVentory</title>
+  <style>
+    :root{--bg:#0b1220;--text:#e8eefc;--muted:#a9b7d7;--line:rgba(255,255,255,.08);--shadow:0 22px 70px rgba(0,0,0,.45);}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(1200px 700px at 20% 20%, #1a2a55 0%, var(--bg) 55%),radial-gradient(900px 600px at 80% 30%, #2a1a55 0%, var(--bg) 60%);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+    .card{width:min(420px,92vw);background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);backdrop-filter:blur(10px);padding:20px 18px;}
+    h1{margin:0 0 2px;color:var(--text);font-size:18px;}
+    .sub{margin:0 0 16px;color:var(--muted);font-size:12px;}
+    label{display:block;color:var(--muted);font-size:12px;margin:10px 0 6px;font-weight:700;}
+    input{width:100%;box-sizing:border-box;padding:12px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none}
+    input:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15);}
+    button{width:100%;padding:12px 14px;border-radius:14px;border:0;background:linear-gradient(135deg,#60a5fa,#2563eb);color:white;font-weight:900;cursor:pointer;margin-top:14px}
+    .err{margin-top:10px;color:#fecaca;font-size:12px;min-height:16px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>IntellVentory</h1>
+    <p class="sub">Sign in to access the 3D Store Map</p>
+
+    <!-- ✅ REAL login (Flask session) -->
+    <form method="POST" action="/login">
+      <label>Username</label>
+      <input id="username" name="username" autocomplete="username" placeholder="user or admin" required>
+
+      <label>Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••" required>
+
+      <button type="submit">Login</button>
+
+      <!-- ✅ show server-side error -->
+      <div class="err">{{ error or "" }}</div>
+    </form>
+  </div>
+</body>
+</html>
